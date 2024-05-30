@@ -1,5 +1,4 @@
 {
-  "logo_alt": "eSignet Signup",
   "register": "Register",
   "landing_page_title": "Oops! The page you are looking for does not exist.",
   "landing_page_description": "Please try navigating using the options below.",
@@ -67,14 +66,13 @@
   "attempts_left_and_retry": "{attemptLeft, plural, =0 {0 of {totalAttempt} attempts left. Please try again after {attemptRetryAfter} minutes.} other {{attemptLeft} of {totalAttempt} attempts left}}",
   "captcha_token_validation": "Please verify that you are a human.",
   "username_validation": "Enter a valid username",
-  "username_lead_zero_validation": "Number cannot start with zero. Please enter a valid mobile number",
+  "username_lead_zero_validation": "Number cannot start with zero. Enter a valid mobile number.",
   "full_name_validation": "Please enter a valid name",
   "full_name_all_spaces_validation": "Please enter a valid name.",
   "full_name_in_lng_validation": "Full Name has to be in Khmer only.",
   "password_validation": "Password does not meet the password policy. Click on \"i\" to know more.",
   "password_validation_must_match": "New Password and Confirm New Password do not match.",
   "register_password_validation_must_match": "Password and Confirm Password do not match.",
-  "captcha_required": "Please re-enter the captcha to resend the OTP",
   "terms_and_conditions_validation": "You must accept the terms and conditions",
   "terms_and_conditions_title": "Terms & Conditions",
   "terms_and_conditions_content": "<h4>Presentation</h4><p>To facilitate your access to online services, the Digital Government Committee has set up the KHID. KHID allows access to services requiring a higher level of security electronic identification/authentication. The list of partners from KHID is available here: URL link or logo of private sectors/public services</p><p>The online service provider you want to connect that defines the level of assurance of identification/authentication required to access its online services(s).</p><p>To use KHID, you must (L2):</p><ul><li>If you are Cambodian, be registered with an Identity card/passport so that your identity data has been verified.</li><li>If you are a foreigner, be registered with a passport so that your identity data has been verified.</li></ul><p>To use KHID, you must (L1):</p><ul><li>registered with a mobile phone number so that your identity data has been verified.</li></ul><p>The KHID is responsible for making the bridge between the Identity Supplier and the Service Provider by generating a unique technical identifier. Thus, following your successful identification/authentication with the Identity card/passport you have chosen, the latter sends your identity data (phone number, full name in Khmer). The KHID then questions the Mobile phone service provider for identification via an OTP code (One-time password) code to check that you exist. If your identification/authentication is validated, the selected identity data may be transmitted from your Service Provider to the Service Provider. You are then connected to the online service of the Service provider.</p><p>Access to KHID is free of charge.</p><h4>Our Responsibilities</h4><p>We may not be held liable for identity theft or any fraudulent use of KHID. We cannot be held liable for any damage caused by any person Unauthorized using your usernames and passwords. You are reminded that anyone who makes a false declaration for itself, or others shall be liable.</p><p>We reserve the right to block your access, without notice or compensation of any kind, in the event of a suspicion of illegal, fraudulent, or contrary to these general conditions of use.</p><h4>Your Responsibilities</h4><p>It is up to you to comply with the conditions of use of the identification service and electronic authentication subscribed to your Identity Provider. It belongs to You in particular, never to disclose your login details and passwords, which must remain confidential.</p><p>It is up to you to comply with the conditions of use of the service as defined by the Supplier of service. In particular, we recommend that you log out at the end of your navigation.</p><h4>Quality Of Services</h4><p>The KHID may be interrupted, without prior notice, in particular for reasons of maintenance, safety, or cases of force majeure. An information message indicating this unavailability may be displayed. The unavailability of the KHID does not entitle you to any compensation.</p><h4>Contact US</h4><p>Under this function a user can contact KHID’s Customer Support Center via the available feedback form, or call-in to our hotline number XX XXX XXX.</p>",
@@ -84,74 +82,6 @@
   "reset_password_discontinue_prompt": "Are you sure you want to discontinue the reset password process?",
   "footer": {
     "powered_by": "Powered by"
-  },
-  "eykc_loading": {
-    "header": "Alert!",
-    "description": "Oops! It looks like you’re using an unsupported browser. Please consider upgrading to the latest version of the browser for the best experience. Thank you for your understanding"
-  },
-  "slot_checking": {
-    "header": "Loading!!!",
-    "description": "Kindly wait as we initiate your eKYC"
-  },
-  "slot_unavailable": {
-    "header": "Alert!",
-    "description": "We are experiencing a higher than usual demand, hence we are unable to proceed with the eKYC verification process at this moment. We regret the inconvenience and request you to please try again later. Thank you for your understanding."
-  },
-  "video_preview": {
-    "header": "Key Information",
-    "cancel_button": "Cancel",
-    "proceed_button": "Proceed",
-    "permission_denied_header": "Camera Permission Denied",
-    "permission_denied_description": "You have to given camera permission otherwise we can't move forward"
-  },
-  "terms_and_conditions": {
-    "header": "Terms & Conditions",
-    "sub_header": "Please read the terms and conditions carefully.",
-    "agree_text": "I agree to the terms and conditions as set out by the user agreement.",
-    "failed_to_load": "Failed to load terms and conditions",
-    "still_loading": "Terms and conditions are still loading. Please wait",
-    "cancel_button": "Cancel",
-    "proceed_button": "Proceed"
-  },
-  "cancel_alert_popover": {
-    "title": "Attention!",
-    "description": "{relyingParty} requires access in order to proceed further, do you still wish to discontinue?",
-    "stay": "Stay",
-    "discontinue": "Discontinue"
-  },
-  "kyc_provider": {
-    "header": "Please select an eKYC service provider",
-    "no_kyc_provider": "No eKYC provider found",
-    "search_placeholder": "Search",
-    "cancel_button": "Cancel",
-    "proceed_button": "Proceed"
-  },
-  "verification_steps": {
-    "header": "Complete your eKYC verification with the below simple steps",
-    "cancel": "Cancel",
-    "proceed": "Proceed",
-    "ekycSteps": {
-      "ekyc_provider": {
-        "label": "Choose an eKYC provider",
-        "description": "Select an eKYC service provider that aligns with your requirements"
-      },
-      "terms_&_conditions": {
-        "label": "Terms & Conditions",
-        "description": "Review the policy terms & conditions"
-      },
-      "pre_verification_guide": {
-        "label": "Pre-verification guide",
-        "description": "Key instructions for a seamless eKYC experience"
-      },
-      "identity_verification": {
-        "label": "Identity verification",
-        "description": "This step verifies the individual’s physical presence during the identity verification process as well as verification of the individual’s identity with their physical ID"
-      },
-      "review_consent": {
-        "label": "Review Consent",
-        "description": "Review and approve consent before sharing with the service provider"
-      }
-    }
   },
   "error_response": {
     "invalid_transaction": "The transaction has timed out. Please try again.",
@@ -189,7 +119,6 @@
     "timed_out": "Timedout",
     "timeout_transaction": "Transaction Timeout",
     "request_limit": "It is taking time to fetch your account status. Please try login after 5 minutes.",
-    "reset_pwd_request_limit": "Delay in fetching status of your request. Try logging in with a new password after 5 minutes.",
     "not_registered": "Not Registered",
     "reset_pwd_failed": "Reset Password Failed",
     "identifier_already_registered": "Identifier already registered",
@@ -200,16 +129,14 @@
     "fetch_identity_failed": "Fetch Identifier Failed",
     "challenge_format_and_type_mismatch": "Challenge format and type mismatch",
     "knowledgebase_mismatch": "Invalid number or name. Please enter a registered mobile number and full name.",
-    "identifier_blocked": "User is blocked. Please try again after 5 minutes.",
+    "identifier_blocked": "Identifier blocked for 5 minutes",
     "unsupported_purpose": "Invalid Request",
-    "server_unreachable": "We are unable to process your request, please try again later.",
-    "otp_notification_failed": "Failed to send the otp",
     "IDR-IDC-001": "Missing Input Parameter",
     "IDR-IDC-002": "Invalid Input Parameter",
     "IDR-IDC-003": "Invalid Request",
     "IDR-IDC-004": "Unknown error occurred",
     "IDR-IDC-005": "Input Data Validation Failed",
-    "IDR-IDC-006": "Username already exist. Please try again with a different username",
+    "IDR-IDC-006": "Error occured while performing DB operations",
     "IDR-IDC-007": "No Record(s) found",
     "IDR-IDC-008": "4XX - Client Error occured",
     "IDR-IDC-009": "5XX - Server Error occured",
@@ -217,7 +144,7 @@
     "IDR-IDC-011": "Authorization Failed",
     "IDR-IDC-012": "Record already exists in DB",
     "IDR-IDC-013": "Update count limit for the attributes exceeded",
-    "IDR-IDC-014": "Username already exist. Please try again with a different username",
+    "IDR-IDC-014": "Handle record already exists in DB",
     "IDR-IDS-001": "Identity Element hash does not match",
     "IDR-IDS-002": "Biometric/Document hash does not match",
     "IDR-IDS-003": "Failed to either encrypt/decrypt message using Kernel Crypto Manager",

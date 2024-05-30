@@ -43,7 +43,7 @@ mosip.ida.handle-types.regex={ '@phone' : '^\\+91[1-9][0-9]{7,9}@phone$' }
 ```
 mosip.idrepo.credential.request.enable-convention-based-id=true
 
-mosip.idrepo.identity.disable-uin-based-credential-request=true
+mosip.idrepo.identity.disable-uin-based-credential-request=false
 
 mosip.idrepo.vid.disable-support=true
 
@@ -108,10 +108,15 @@ mosip.kernel.sms.country.code=+91
   cd helm
   ./restart-all.sh
   ```
-  
+ 
 
 ## APIs
-API documentation is available [here](https://mosip.stoplight.io/docs/identity-provider/branches/signupV1/t9tvfbteqqokf-e-signet-signup-portal-ap-is).
+API documentation is available [here](docs/esignet-signup-openapi.yaml).
+
+## Credits
+
+We extend our sincere appreciation to the [Cambodia Digital Government Committee team](/Credits.md) for their invaluable support to MOSIP by implementing the Signup UI and service module. We are truly impressed by your commitment and outstanding contribution.
+
 
 ## License
 This project is licensed under the terms of [Mozilla Public License 2.0](LICENSE).

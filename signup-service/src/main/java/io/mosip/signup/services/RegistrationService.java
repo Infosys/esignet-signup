@@ -24,7 +24,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import javax.servlet.http.Cookie;
@@ -101,9 +100,6 @@ public class RegistrationService {
     @Value("${mosip.signup.challenge.resend-attempt}")
     private int resendAttempts;
 
-    @Value("${mosip.signup.challenge.verification-attempt}")
-    private int verificationAttempts;
-
     @Value("${mosip.signup.challenge.resend-delay}")
     private long resendDelay;
 
@@ -121,8 +117,6 @@ public class RegistrationService {
 
     @Value("${mosip.signup.get-registration-status.endpoint}")
     private String getRegistrationStatusEndpoint;
-
-    private final String notificationLogging = "Notification response -> {}";
 
     /**
      * Generate and regenerate challenge based on the "regenerate" flag in the request.
@@ -145,7 +139,7 @@ public class RegistrationService {
         if(cacheUtilService.isIdentifierBlocked(identifier))
             throw new SignUpException(ErrorConstants.IDENTIFIER_BLOCKED);
 
-        if(!generateChallengeRequest.isRegenerateChallenge()) {
+        if(generateChallengeRequest.isRegenerate() == false) {
             transactionId = IdentityProviderUtil.createTransactionId(null);
             transaction = new RegistrationTransaction(identifier, generateChallengeRequest.getPurpose());
             //Need to set cookie only when regenerate is false.
@@ -154,7 +148,6 @@ public class RegistrationService {
         else {
             transaction = cacheUtilService.getChallengeGeneratedTransaction(transactionId);
             validateTransaction(transaction, identifier, generateChallengeRequest);
-            transaction.setVerificationAttempts(0);
         }
 
         // generate Challenge
@@ -169,16 +162,11 @@ public class RegistrationService {
         if(transaction.getChallengeRetryAttempts() > resendAttempts)
             cacheUtilService.blockIdentifier(transactionId, transaction.getIdentifier(), "blocked");
 
-        HashMap<String, String> hashMap = new LinkedHashMap<>();
-        hashMap.put("{challenge}", challenge);
-        RestResponseWrapper<NotificationResponse> notificationResponseRest;
-        try{
-            notificationResponseRest = notificationHelper.sendSMSNotification(generateChallengeRequest.getIdentifier(), transaction.getLocale(),
-                    SEND_OTP_SMS_NOTIFICATION_TEMPLATE_KEY, hashMap);
-            log.debug(notificationLogging, notificationResponseRest);
-        }catch (RestClientException e){
-            throw new SignUpException(ErrorConstants.OTP_NOTIFICATION_FAILED);
-        }
+        notificationHelper.sendSMSNotificationAsync(generateChallengeRequest.getIdentifier(), transaction.getLocale(),
+                        SEND_OTP_SMS_NOTIFICATION_TEMPLATE_KEY, new HashMap<>(){{put("{challenge}", challenge);}})
+                .thenAccept(notificationResponseRestResponseWrapper -> {
+                    log.debug("Notification response -> {}", notificationResponseRestResponseWrapper);
+                });
         return new GenerateChallengeResponse(ActionStatus.SUCCESS);
     }
 
@@ -205,17 +193,14 @@ public class RegistrationService {
 
         if(otpChallengeInfo.isEmpty()) throw new SignUpException(ErrorConstants.INVALID_CHALLENGE);
 
+        String challengeHash = IdentityProviderUtil.generateB64EncodedHash(IdentityProviderUtil.ALGO_SHA3_256,
+                otpChallengeInfo.get().getChallenge());
+
         if(transaction.getLastRetryToNow() >= challengeTimeout) {
             throw new SignUpException(ErrorConstants.CHALLENGE_EXPIRED);
         }
-        if(transaction.getVerificationAttempts() >= verificationAttempts){
-            throw new SignUpException(ErrorConstants.TOO_MANY_VERIFY_ATTEMPTS);
-        }
 
-        String challengeHash = IdentityProviderUtil.generateB64EncodedHash(IdentityProviderUtil.ALGO_SHA3_256,
-                otpChallengeInfo.get().getChallenge());
         if(!challengeHash.equals(transaction.getChallengeHash())) {
-            transaction.incrementVerificationAttempt();
             log.error("Transaction {} : challenge not match", transactionId);
             throw new ChallengeFailedException();
         }
@@ -258,12 +243,11 @@ public class RegistrationService {
         transaction.setRegistrationStatus(RegistrationStatus.PENDING);
         cacheUtilService.setStatusCheckTransaction(transactionId, transaction);
 
-        String locale = registerRequest.getLocale() == null ? transaction.getLocale() : registerRequest.getLocale();
-
-        notificationHelper.sendSMSNotificationAsync(registerRequest.getUserInfo().getPhone(), locale,
+        notificationHelper.sendSMSNotificationAsync(registerRequest.getUserInfo().getPhone(), transaction.getLocale(),
                         REGISTRATION_SMS_NOTIFICATION_TEMPLATE_KEY, null)
-                .thenAccept(notificationResponseRestResponseWrapper ->
-                        log.debug(notificationLogging, notificationResponseRestResponseWrapper));
+                .thenAccept(notificationResponseRestResponseWrapper -> {
+                    log.debug("Notification response -> {}", notificationResponseRestResponseWrapper);
+                });
 
         RegisterResponse registration = new RegisterResponse();
         registration.setStatus(ActionStatus.PENDING);
@@ -271,8 +255,9 @@ public class RegistrationService {
         return registration;
     }
 
-    private RegistrationTransaction getTransaction(
-            ResetPasswordRequest resetPasswordRequest, String transactionId) {
+    public RegistrationStatusResponse updatePassword(ResetPasswordRequest resetPasswordRequest,
+                                           String transactionId) throws SignUpException{
+
         log.debug("Transaction {} : start reset password", transactionId);
         RegistrationTransaction transaction = cacheUtilService.getChallengeVerifiedTransaction(transactionId);
         if(transaction == null) {
@@ -289,11 +274,7 @@ public class RegistrationService {
             log.error("reset password failed: purpose mismatch in transaction");
             throw new SignUpException(ErrorConstants.UNSUPPORTED_PURPOSE);
         }
-        return transaction;
-    }
 
-    private RestRequestWrapper getRestRequestWrapper(RegistrationTransaction transaction, String transactionId,
-                                 ResetPasswordRequest resetPasswordRequest ) {
         Identity identity = new Identity();
         identity.setUIN(cryptoHelper.symmetricDecrypt(transaction.getUin()));
         identity.setIDSchemaVersion(idSchemaVersion);
@@ -312,52 +293,34 @@ public class RegistrationService {
         restRequest.setRequesttime(IdentityProviderUtil.getUTCDateTime());
         restRequest.setRequest(identityRequest);
 
-        return restRequest;
-    }
-
-    private void verifyIdentityResponseForResetPassword(RestRequestWrapper restRequest, String transactionId ) {
-        try {
-            HttpEntity<RestRequestWrapper<IdentityRequest>> resReq = new HttpEntity<>(restRequest);
-            RestResponseWrapper<IdentityResponse> restResponseWrapper = selfTokenRestTemplate.exchange(identityEndpoint,
-                    HttpMethod.PATCH,
-                    resReq,
-                    new ParameterizedTypeReference<RestResponseWrapper<IdentityResponse>>() {}).getBody();
-
-            if (restResponseWrapper != null && restResponseWrapper.getErrors() != null &&
-                    !CollectionUtils.isEmpty(restResponseWrapper.getErrors())){
-                log.error("Transaction {} : reset password failed with response {}", transactionId, restResponseWrapper);
-                throw new SignUpException(restResponseWrapper.getErrors().get(0).getErrorCode());
-            }
-
-            if (restResponseWrapper == null || restResponseWrapper.getResponse() == null){
-                log.error("Transaction {} : reset password failed with response {}", transactionId, restResponseWrapper);
-                throw new SignUpException(ErrorConstants.RESET_PWD_FAILED);
-            }
-        } catch (RestClientException e) {
-            log.error("Endpoint {} is unreachable.", identityEndpoint);
-            throw new SignUpException(ErrorConstants.SERVER_UNREACHABLE);
-        }
-    }
-
-    public RegistrationStatusResponse updatePassword(ResetPasswordRequest resetPasswordRequest,
-                                           String transactionId) throws SignUpException{
-        RegistrationTransaction transaction = this.getTransaction(resetPasswordRequest, transactionId);
-        RestRequestWrapper restRequest = this.getRestRequestWrapper(transaction, transactionId, resetPasswordRequest);
-
         log.debug("Transaction {} : start reset password", transactionId);
-        this.verifyIdentityResponseForResetPassword(restRequest, transactionId);
+        HttpEntity<RestRequestWrapper<IdentityRequest>> resReq = new HttpEntity<>(restRequest);
+        RestResponseWrapper<IdentityResponse> restResponseWrapper = selfTokenRestTemplate.exchange(identityEndpoint,
+                HttpMethod.PATCH,
+                resReq,
+                new ParameterizedTypeReference<RestResponseWrapper<IdentityResponse>>() {}).getBody();
+
+        if (restResponseWrapper != null && restResponseWrapper.getErrors() != null &&
+                !CollectionUtils.isEmpty(restResponseWrapper.getErrors())){
+            log.error("Transaction {} : reset password failed with response {}", transactionId, restResponseWrapper);
+            throw new SignUpException(restResponseWrapper.getErrors().get(0).getErrorCode());
+        }
+
+        if (restResponseWrapper == null || restResponseWrapper.getResponse() == null){
+            log.error("Transaction {} : reset password failed with response {}", transactionId, restResponseWrapper);
+            throw new SignUpException(ErrorConstants.RESET_PWD_FAILED);
+        }
 
         transaction.getHandlesStatus().put(getHandleRequestId(transaction.getApplicationId(),
                 "phone", resetPasswordRequest.getIdentifier()), RegistrationStatus.PENDING);
         transaction.setRegistrationStatus(RegistrationStatus.PENDING);
         cacheUtilService.setStatusCheckTransaction(transactionId, transaction);
 
-        String locale = resetPasswordRequest.getLocale() == null ? transaction.getLocale() : resetPasswordRequest.getLocale();
-
-        notificationHelper.sendSMSNotificationAsync(resetPasswordRequest.getIdentifier(), locale,
+        notificationHelper.sendSMSNotificationAsync(resetPasswordRequest.getIdentifier(), transaction.getLocale(),
                         FORGOT_PASSWORD_SMS_NOTIFICATION_TEMPLATE_KEY, null)
-                .thenAccept(notificationResponseRestResponseWrapper ->
-                        log.debug(notificationLogging, notificationResponseRestResponseWrapper));
+                .thenAccept(notificationResponseRestResponseWrapper -> {
+                    log.debug("Notification response -> {}", notificationResponseRestResponseWrapper);
+                });
 
         RegistrationStatusResponse resetPassword = new RegistrationStatusResponse();
         resetPassword.setStatus(RegistrationStatus.PENDING);
@@ -393,29 +356,21 @@ public class RegistrationService {
 
     private void fetchAndCheckIdentity(String transactionId, RegistrationTransaction registrationTransaction,
                                        VerifyChallengeRequest verifyChallengeRequest) {
-        try {
-            String endpoint = String.format(getIdentityEndpoint, verifyChallengeRequest.getIdentifier());
-            RestResponseWrapper<IdentityResponse> restResponseWrapper = selfTokenRestTemplate
-                    .exchange(endpoint, HttpMethod.GET, null,
-                            new ParameterizedTypeReference<RestResponseWrapper<IdentityResponse>>() {
-                            }).getBody();
 
-            if (restResponseWrapper == null) throw new SignUpException(ErrorConstants.FETCH_IDENTITY_FAILED);
+        String endpoint = String.format(getIdentityEndpoint, verifyChallengeRequest.getIdentifier());
+        RestResponseWrapper<IdentityResponse> restResponseWrapper = selfTokenRestTemplate
+                .exchange(endpoint, HttpMethod.GET, null,
+                        new ParameterizedTypeReference<RestResponseWrapper<IdentityResponse>>() {}).getBody();
 
-            switch (registrationTransaction.getPurpose()) {
-                case REGISTRATION:
-                    checkIdentityExists(restResponseWrapper);
-                    break;
-                case RESET_PASSWORD:
-                    checkActiveIdentityExists(transactionId, restResponseWrapper, registrationTransaction,
-                            verifyChallengeRequest);
-                    break;
-                default:
-                    throw new SignUpException(ErrorConstants.UNSUPPORTED_PURPOSE);
-            }
-        } catch (RestClientException e) {
-            log.error("Endpoint {} is unreachable.", getIdentityEndpoint);
-            throw new SignUpException(ErrorConstants.SERVER_UNREACHABLE);
+        if (restResponseWrapper == null) throw new SignUpException(ErrorConstants.FETCH_IDENTITY_FAILED);
+
+        switch (registrationTransaction.getPurpose()){
+            case REGISTRATION: checkIdentityExists(restResponseWrapper);
+                break;
+            case RESET_PASSWORD: checkActiveIdentityExists(transactionId, restResponseWrapper, registrationTransaction,
+                    verifyChallengeRequest);
+                break;
+            default: throw new SignUpException(ErrorConstants.UNSUPPORTED_PURPOSE);
         }
     }
 
@@ -490,7 +445,7 @@ public class RegistrationService {
         identity.setPassword(password);
 
         //By default, phone is set as the selected handle.
-        identity.setSelectedHandles(List.of("phone"));
+        identity.setSelectedHandles(Arrays.asList("phone"));
         transaction.getHandlesStatus().put(getHandleRequestId(transaction.getApplicationId(),
                 "phone", userInfoMap.getPhone()), RegistrationStatus.PENDING);
 
@@ -501,7 +456,7 @@ public class RegistrationService {
         addIdentity(identityRequest, transactionId);
     }
 
-    @Timed(value = "addidentity.api.timer", percentiles = {0.9})
+    @Timed(value = "addidentity.api.timer", percentiles = {0.95, 0.99})
     private void addIdentity(IdentityRequest identityRequest, String transactionId) throws SignUpException{
 
         RestRequestWrapper<IdentityRequest> restRequest = new RestRequestWrapper<>();
@@ -511,28 +466,23 @@ public class RegistrationService {
         restRequest.setRequest(identityRequest);
 
         log.debug("Transaction {} : start add identity", transactionId);
-        try {
-            HttpEntity<RestRequestWrapper<IdentityRequest>> resReq = new HttpEntity<>(restRequest);
-            RestResponseWrapper<IdentityResponse> restResponseWrapper = selfTokenRestTemplate.exchange(identityEndpoint,
-                    HttpMethod.POST,
-                    resReq,
-                    new ParameterizedTypeReference<RestResponseWrapper<IdentityResponse>>() {
-                    }).getBody();
+        HttpEntity<RestRequestWrapper<IdentityRequest>> resReq = new HttpEntity<>(restRequest);
+        RestResponseWrapper<IdentityResponse> restResponseWrapper = selfTokenRestTemplate.exchange(identityEndpoint,
+                HttpMethod.POST,
+                resReq,
+                new ParameterizedTypeReference<RestResponseWrapper<IdentityResponse>>() {}).getBody();
 
-            if (restResponseWrapper != null && restResponseWrapper.getResponse() != null &&
-                    restResponseWrapper.getResponse().getStatus().equals("ACTIVATED")) {
-                return;
-            }
-
-            log.error("Transaction {} : Add identity failed with response {}", transactionId, restResponseWrapper);
-            throw new SignUpException(restResponseWrapper != null && !CollectionUtils.isEmpty(restResponseWrapper.getErrors()) ?
-                    restResponseWrapper.getErrors().get(0).getErrorCode() : ErrorConstants.ADD_IDENTITY_FAILED);
-        } catch (RestClientException e) {
-            log.error("Endpoint {} is unreachable.", identityEndpoint);
-            throw new SignUpException(ErrorConstants.SERVER_UNREACHABLE);
+        if (restResponseWrapper != null && restResponseWrapper.getResponse() != null &&
+                restResponseWrapper.getResponse().getStatus().equals("ACTIVATED")) {
+            return;
         }
+
+        log.error("Transaction {} : Add identity failed with response {}", transactionId, restResponseWrapper);
+        throw new SignUpException(restResponseWrapper != null && !CollectionUtils.isEmpty(restResponseWrapper.getErrors()) ?
+                restResponseWrapper.getErrors().get(0).getErrorCode() : ErrorConstants.ADD_IDENTITY_FAILED);
     }
 
+    @Timed(value = "generatehash.api.timer", percentiles = {0.95, 0.99})
     private Password generateSaltedHash(String password, String transactionId) throws SignUpException{
 
         RestRequestWrapper<Password.PasswordPlaintext> restRequestWrapper = new RestRequestWrapper<>();
@@ -541,46 +491,35 @@ public class RegistrationService {
 
         HttpEntity<RestRequestWrapper<Password.PasswordPlaintext>> resReq = new HttpEntity<>(restRequestWrapper);
         log.debug("Transaction {} : Generate salted hash started", transactionId);
-        try {
-            RestResponseWrapper<Password.PasswordHash> restResponseWrapper = selfTokenRestTemplate.exchange(
-                    generateHashEndpoint, HttpMethod.POST, resReq, new ParameterizedTypeReference<RestResponseWrapper<Password.PasswordHash>>(){}).getBody();
+        RestResponseWrapper<Password.PasswordHash> restResponseWrapper = selfTokenRestTemplate.exchange(generateHashEndpoint, HttpMethod.POST, resReq, new ParameterizedTypeReference<RestResponseWrapper<Password.PasswordHash>>(){}).getBody();
 
-            if (restResponseWrapper != null && restResponseWrapper.getResponse() != null &&
-                    !StringUtils.isEmpty(restResponseWrapper.getResponse().getHashValue()) &&
-                    !StringUtils.isEmpty(restResponseWrapper.getResponse().getSalt())) {
-                return new Password(restResponseWrapper.getResponse().getHashValue(),
-                        restResponseWrapper.getResponse().getSalt());
-            }
-
-            log.error("Transaction {} : Generate salted hash failed with response {}", transactionId, restResponseWrapper);
-            throw new SignUpException(restResponseWrapper != null && !CollectionUtils.isEmpty(restResponseWrapper.getErrors()) ?
-                    restResponseWrapper.getErrors().get(0).getErrorCode() : ErrorConstants.HASH_GENERATE_FAILED);
-        } catch (RestClientException e) {
-            log.error("Endpoint {} is unreachable.", generateHashEndpoint);
-            throw new SignUpException(ErrorConstants.SERVER_UNREACHABLE);
+        if (restResponseWrapper != null && restResponseWrapper.getResponse() != null &&
+                !StringUtils.isEmpty(restResponseWrapper.getResponse().getHashValue()) &&
+                !StringUtils.isEmpty(restResponseWrapper.getResponse().getSalt())) {
+            return new Password(restResponseWrapper.getResponse().getHashValue(),
+                    restResponseWrapper.getResponse().getSalt());
         }
+
+        log.error("Transaction {} : Generate salted hash failed with response {}", transactionId, restResponseWrapper);
+        throw new SignUpException(restResponseWrapper != null && !CollectionUtils.isEmpty(restResponseWrapper.getErrors()) ?
+                restResponseWrapper.getErrors().get(0).getErrorCode() : ErrorConstants.HASH_GENERATE_FAILED);
     }
 
-    @Timed(value = "getuin.api.timer", percentiles = {0.9})
+    @Timed(value = "getuin.api.timer", percentiles = {0.95, 0.99})
     private String getUniqueIdentifier(String transactionId) throws SignUpException {
-        try {
-            RestResponseWrapper<UINResponse> restResponseWrapper = selfTokenRestTemplate.exchange(
-                    getUinEndpoint,
-                    HttpMethod.GET, null,
-                    new ParameterizedTypeReference<RestResponseWrapper<UINResponse>>() {}).getBody();
 
-            if (restResponseWrapper != null && restResponseWrapper.getResponse() != null &&
-                    !StringUtils.isEmpty(restResponseWrapper.getResponse().getUIN()) ) {
-                return restResponseWrapper.getResponse().getUIN();
-            }
+        RestResponseWrapper<UINResponse> restResponseWrapper = selfTokenRestTemplate.exchange(getUinEndpoint,
+                HttpMethod.GET, null,
+                new ParameterizedTypeReference<RestResponseWrapper<UINResponse>>() {}).getBody();
 
-            log.error("Transaction {} : Get unique identifier(UIN) failed with response {}", transactionId, restResponseWrapper);
-            throw new SignUpException(restResponseWrapper != null && !CollectionUtils.isEmpty(restResponseWrapper.getErrors()) ?
-                    restResponseWrapper.getErrors().get(0).getErrorCode() : ErrorConstants.GET_UIN_FAILED);
-        } catch (RestClientException e) {
-            log.error("Endpoint {} is unreachable.", getUinEndpoint);
-            throw new SignUpException(ErrorConstants.SERVER_UNREACHABLE);
+        if (restResponseWrapper != null && restResponseWrapper.getResponse() != null &&
+                !StringUtils.isEmpty(restResponseWrapper.getResponse().getUIN()) ) {
+            return restResponseWrapper.getResponse().getUIN();
         }
+
+        log.error("Transaction {} : Get unique identifier(UIN) failed with response {}", transactionId, restResponseWrapper);
+        throw new SignUpException(restResponseWrapper != null && !CollectionUtils.isEmpty(restResponseWrapper.getErrors()) ?
+                restResponseWrapper.getErrors().get(0).getErrorCode() : ErrorConstants.GET_UIN_FAILED);
     }
 
     private void validateTransaction(RegistrationTransaction transaction, String identifier,
@@ -611,33 +550,23 @@ public class RegistrationService {
         }
     }
 
-    @Timed(value = "getstatus.api.timer", percentiles = {0.9})
+    @Timed(value = "getstatus.api.timer", percentiles = {0.95, 0.99})
     private RegistrationStatus getRegistrationStatusFromServer(String applicationId) {
-        try {
-            RestResponseWrapper<Map<String, String>> restResponseWrapper = selfTokenRestTemplate.exchange(
-                    getRegistrationStatusEndpoint,
-                    HttpMethod.GET, null,
-                    new ParameterizedTypeReference<RestResponseWrapper<Map<String, String>>>() {
-                    }, applicationId).getBody();
+        RestResponseWrapper<Map<String,String>> restResponseWrapper = selfTokenRestTemplate.exchange(getRegistrationStatusEndpoint,
+                HttpMethod.GET, null,
+                new ParameterizedTypeReference<RestResponseWrapper<Map<String,String>>>() {}, applicationId).getBody();
 
-            if (restResponseWrapper != null && restResponseWrapper.getResponse() != null &&
-                    !StringUtils.isEmpty(restResponseWrapper.getResponse().get("statusCode"))) {
-                switch (restResponseWrapper.getResponse().get("statusCode")) {
-                    case "STORED":
-                        return RegistrationStatus.COMPLETED;
-                    case "FAILED":
-                        return RegistrationStatus.FAILED;
-                    case "ISSUED":
-                    default:
-                        return RegistrationStatus.PENDING;
-                }
+        if (restResponseWrapper != null && restResponseWrapper.getResponse() != null &&
+                !StringUtils.isEmpty(restResponseWrapper.getResponse().get("statusCode")) ) {
+            switch (restResponseWrapper.getResponse().get("statusCode")) {
+                case "STORED" : return RegistrationStatus.COMPLETED;
+                case "FAILED" : return RegistrationStatus.FAILED;
+                case "ISSUED" :
+                default: return RegistrationStatus.PENDING;
             }
-            log.error("Transaction {} : Get registration status failed with response {}", applicationId, restResponseWrapper);
-            return RegistrationStatus.PENDING;
-        } catch (RestClientException e) {
-            log.error("Endpoint {} is unreachable.", getRegistrationStatusEndpoint);
-            throw new SignUpException(ErrorConstants.SERVER_UNREACHABLE);
         }
+        log.error("Transaction {} : Get registration status failed with response {}", applicationId, restResponseWrapper);
+        return RegistrationStatus.PENDING;
     }
 
     private void addCookieInResponse(String transactionId, int maxAge) {
@@ -650,6 +579,7 @@ public class RegistrationService {
 
     private void addVerifiedCookieInResponse(String transactionId, int maxAge) {
         Cookie cookie = new Cookie(SignUpConstants.VERIFIED_TRANSACTION_ID, transactionId);
+        cookie.setPath("/v1/signup/");
         cookie.setMaxAge(maxAge);
         cookie.setHttpOnly(true);
         cookie.setSecure(true);
@@ -657,8 +587,6 @@ public class RegistrationService {
 
         Cookie unsetCookie = new Cookie(SignUpConstants.TRANSACTION_ID, "");
         unsetCookie.setMaxAge(0);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);
         response.addCookie(unsetCookie);
     }
 

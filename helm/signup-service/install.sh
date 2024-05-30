@@ -7,13 +7,13 @@ if [ $# -ge 1 ] ; then
 fi
 
 SOFTHSM_NS=softhsm
-SOFTHSM_CHART_VERSION=0.0.1-develop
+SOFTHSM_CHART_VERSION=12.0.1
 
 echo Create $SOFTHSM_NS namespace
 kubectl create ns $SOFTHSM_NS
 
 NS=signup
-CHART_VERSION=0.0.1-develop
+CHART_VERSION=1.0.1
 
 SIGNUP_HOST=$(kubectl get cm global -o jsonpath={.data.mosip-signup-host})
 
@@ -67,7 +67,6 @@ function installing_signup() {
   echo $SIGNUP_CLIENT_SECRET_VALUE
   kubectl patch secret keycloak-client-secrets --namespace=config-server --type=json -p='[{"op": "add", "path": "/data/'$SIGNUP_CLIENT_SECRET_KEY'", "value": "'$SIGNUP_CLIENT_SECRET_VALUE'"}]'
 
-  
   kubectl -n config-server set env --keys=mosip_signup_client_secret --from secret/keycloak-client-secrets deployment/config-server --prefix=SPRING_CLOUD_CONFIG_SERVER_OVERRIDES_
   kubectl -n config-server set env --keys=mosip-signup-host --from configmap/global deployment/config-server --prefix=SPRING_CLOUD_CONFIG_SERVER_OVERRIDES_
   kubectl -n config-server set env --keys=signup-captcha-site-key --from secret/signup-captcha deployment/config-server --prefix=SPRING_CLOUD_CONFIG_SERVER_OVERRIDES_

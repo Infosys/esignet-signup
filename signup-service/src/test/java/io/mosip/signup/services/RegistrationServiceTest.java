@@ -27,13 +27,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
@@ -45,7 +43,6 @@ import javax.servlet.http.HttpServletResponse;
 import io.mosip.esignet.core.exception.EsignetException;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @RunWith(SpringRunner.class)
@@ -81,21 +78,13 @@ public class RegistrationServiceTest {
     private final String getIdentityEndpoint = "getIdentityEndpoint";
     private final String getUinEndpoint = "getUinEndpoint";
 
-    private final String getRegistrationStatusEndpoint = "getRegistrationStatusEndpoint";
-
-    private String locale = "khm";
-
-
     @Before
     public void setUp() {
         ReflectionTestUtils.setField(registrationService, identityEndpoint, identityEndpoint);
         ReflectionTestUtils.setField(registrationService, generateHashEndpoint, generateHashEndpoint);
         ReflectionTestUtils.setField(registrationService, getUinEndpoint, getUinEndpoint);
-        ReflectionTestUtils.setField(registrationService, getRegistrationStatusEndpoint, getRegistrationStatusEndpoint);
         ReflectionTestUtils.setField(
                 registrationService, "resendAttempts", 3);
-        ReflectionTestUtils.setField(
-                registrationService, "verificationAttempts", 3);
         ReflectionTestUtils.setField(
                 registrationService, "resendDelay", 30);
         ReflectionTestUtils.setField(
@@ -143,36 +132,6 @@ public class RegistrationServiceTest {
         Assert.assertEquals("SUCCESS", verifyChallengeResponse.getStatus());
     }
 
-    @Test
-    public void doVerifyChallenge_withExceededVerifyAttempt_thenFail() throws SignUpException {
-        ReflectionTestUtils.setField(registrationService, "verificationAttempts", 3);
-        ChallengeInfo challengeInfo = new ChallengeInfo();
-        challengeInfo.setFormat("alpha-numeric");
-        challengeInfo.setChallenge("123456");
-        challengeInfo.setType("OTP");
-
-        List<ChallengeInfo> challengeList = new ArrayList<>();
-        challengeList.add(challengeInfo);
-
-        VerifyChallengeRequest verifyChallengeRequest = new VerifyChallengeRequest();
-        verifyChallengeRequest.setIdentifier("123456");
-        verifyChallengeRequest.setChallengeInfo(challengeList);
-
-        String mockTransactionId = "mock-transactionId";
-        RegistrationTransaction registrationTransaction = new RegistrationTransaction("+85512123123", Purpose.REGISTRATION);
-        registrationTransaction.setChallengeHash("failed");
-        registrationTransaction.setIdentifier(verifyChallengeRequest.getIdentifier());
-        registrationTransaction.setLastRetryAt(LocalDateTime.now(ZoneOffset.UTC));
-        registrationTransaction.setVerificationAttempts(4);
-        when(cacheUtilService.getChallengeGeneratedTransaction(mockTransactionId)).thenReturn(registrationTransaction);
-
-        try {
-            registrationService.verifyChallenge(verifyChallengeRequest, mockTransactionId);
-            Assert.fail();
-        } catch (SignUpException signUpException) {
-            Assert.assertEquals(ErrorConstants.TOO_MANY_VERIFY_ATTEMPTS, signUpException.getErrorCode());
-        }
-    }
     @Test
     public void doVerifyChallenge_whenIdentifierAlreadyRegisterError_throwIdentityAlreadyRegister() {
 
@@ -815,8 +774,6 @@ public class RegistrationServiceTest {
     // ## register---------------------------------
     @Test
     public void register_thenPass() throws SignUpException {
-        String local = "khm";
-
         UserInfoMap userInfo = new UserInfoMap();
         userInfo.setPreferredLang("khm");
         userInfo.setFullName(List.of(new LanguageTaggedValue("eng", "Panharith AN")));
@@ -827,70 +784,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(local);
-
-        String mockTransactionID = "123456789";
-
-        RegistrationTransaction mockRegistrationTransaction = new RegistrationTransaction(userInfo.getPhone(), Purpose.REGISTRATION);
-        mockRegistrationTransaction.setChallengeHash("123456");
-        mockRegistrationTransaction.setIdentifier(userInfo.getPhone());
-
-        when(cacheUtilService.getChallengeVerifiedTransaction(mockTransactionID))
-                .thenReturn(mockRegistrationTransaction);
-
-        IdentityResponse identityResponse = new IdentityResponse();
-        identityResponse.setStatus("ACTIVATED");
-        UINResponse uinResponse = new UINResponse();
-        uinResponse.setUIN("mockUIN");
-        Password.PasswordHash passwordHash = new Password.PasswordHash();
-        passwordHash.setSalt("mockSalt");
-        passwordHash.setHashValue("mockHashValue");
-
-        RestResponseWrapper<IdentityResponse> mockRestResponseWrapperAddIdentityResponse = new RestResponseWrapper<IdentityResponse>();
-        mockRestResponseWrapperAddIdentityResponse.setResponse(identityResponse);
-        RestResponseWrapper<UINResponse> mockRestResponseWrapperUINResponse = new RestResponseWrapper<UINResponse>();
-        mockRestResponseWrapperUINResponse.setResponse(uinResponse);
-        RestResponseWrapper<Password.PasswordHash> mockRestResponseWrapperPasswordHash = new RestResponseWrapper<Password.PasswordHash>();
-        mockRestResponseWrapperPasswordHash.setResponse(passwordHash);
-
-        when(selfTokenRestTemplate.exchange(
-                eq(getUinEndpoint),
-                eq(HttpMethod.GET),
-                eq(null),
-                any(ParameterizedTypeReference.class))).thenReturn(new ResponseEntity<>(mockRestResponseWrapperUINResponse, HttpStatus.OK));
-        when(selfTokenRestTemplate.exchange(
-                eq(generateHashEndpoint),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
-                any(ParameterizedTypeReference.class))).thenReturn(new ResponseEntity<>(mockRestResponseWrapperPasswordHash, HttpStatus.OK));
-        when(selfTokenRestTemplate.exchange(
-                eq(identityEndpoint),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
-                any(ParameterizedTypeReference.class))).thenReturn(new ResponseEntity<>(mockRestResponseWrapperAddIdentityResponse, HttpStatus.OK));
-
-        when(notificationHelper.sendSMSNotificationAsync(any(), any(), any(), any()))
-                .thenReturn(new CompletableFuture<>());
-
-        RegisterResponse registerResponse = registrationService.register(registerRequest, mockTransactionID);
-        Assert.assertNotNull(registerResponse);
-        Assert.assertEquals("PENDING", registerResponse.getStatus());
-    }
-
-    @Test
-    public void register_withNullLocale_thenPass() throws SignUpException {
-
-        UserInfoMap userInfo = new UserInfoMap();
-        userInfo.setPreferredLang("khm");
-        userInfo.setFullName(List.of(new LanguageTaggedValue("eng", "Panharith AN")));
-        userInfo.setPhone("+855219718732");
-
-        RegisterRequest registerRequest = new RegisterRequest();
-        registerRequest.setUserInfo(userInfo);
-        registerRequest.setUsername("+855219718732");
-        registerRequest.setPassword("123123");
-        registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(null);
 
         String mockTransactionID = "123456789";
 
@@ -942,7 +835,6 @@ public class RegistrationServiceTest {
 
     @Test
     public void register_whenUinEndpointResponseNullBody_throwGetUINFailed() throws SignUpException {
-        String locale = "eng";
         UserInfoMap userInfo = new UserInfoMap();
         userInfo.setPreferredLang("khm");
         userInfo.setFullName(List.of(new LanguageTaggedValue("eng", "Panharith AN")));
@@ -953,7 +845,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -990,7 +881,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1053,7 +943,6 @@ public class RegistrationServiceTest {
                 eq(null),
                 any(ParameterizedTypeReference.class))).thenReturn(new ResponseEntity<>(mockRestResponseWrapperUINResponse, HttpStatus.OK));
 
-
         try {
             registrationService.register(registerRequest, mockTransactionID);
             Assert.fail();
@@ -1074,7 +963,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1114,7 +1002,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1164,7 +1051,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1218,7 +1104,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1270,7 +1155,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1325,7 +1209,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1380,7 +1263,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1440,7 +1322,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1502,7 +1383,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1566,7 +1446,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1629,7 +1508,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1653,7 +1531,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855321444123");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("AGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1684,7 +1561,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("DISAGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1715,7 +1591,6 @@ public class RegistrationServiceTest {
         registerRequest.setUsername("+855219718732");
         registerRequest.setPassword("123123");
         registerRequest.setConsent("DISAGREE");
-        registerRequest.setLocale(locale);
 
         String mockTransactionID = "123456789";
 
@@ -1743,7 +1618,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(false);
+        generateChallengeRequest.setRegenerate(false);
         when(challengeManagerService.generateChallenge(any())).thenReturn("1111");
         when(googleRecaptchaValidatorService.validateCaptcha(
                 generateChallengeRequest.getCaptchaToken())).thenReturn(true);
@@ -1758,33 +1633,12 @@ public class RegistrationServiceTest {
     }
 
     @Test
-    public void doGenerateChallenge_withFailedSendNotification_thenFail() throws SignUpException, IOException {
-        String identifier = "+85577410541";
-        GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
-        generateChallengeRequest.setIdentifier(identifier);
-        generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(false);
-        when(challengeManagerService.generateChallenge(any())).thenReturn("1111");
-        when(googleRecaptchaValidatorService.validateCaptcha(
-                generateChallengeRequest.getCaptchaToken())).thenReturn(true);
-        when(notificationHelper.sendSMSNotification(any(), any(), any(), any()))
-                .thenThrow(new RestClientException("failed to send notification"));
-
-        try{
-            registrationService.generateChallenge(generateChallengeRequest, "");
-            Assert.fail();
-        } catch (SignUpException ex) {
-            Assert.assertEquals("otp_notification_failed", ex.getErrorCode());
-        }
-    }
-
-    @Test
     public void doGenerateChallenge_withRetryAttemptsOver3time_thenFail() throws SignUpException{
         String identifier = "+85577410541";
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(true);
+        generateChallengeRequest.setRegenerate(true);
         generateChallengeRequest.setPurpose(Purpose.REGISTRATION);
         String transactionId = "TRAN-1234";
         RegistrationTransaction transaction = new RegistrationTransaction(identifier, Purpose.REGISTRATION);
@@ -1811,7 +1665,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(true);
+        generateChallengeRequest.setRegenerate(true);
         generateChallengeRequest.setPurpose(Purpose.REGISTRATION);
         String transactionId = "TRAN-1234";
         RegistrationTransaction transaction = new RegistrationTransaction(identifier, Purpose.REGISTRATION);
@@ -1837,7 +1691,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(true);
+        generateChallengeRequest.setRegenerate(true);
         String transactionId = "TRAN-12341";
         RegistrationTransaction transaction = new RegistrationTransaction(identifier, Purpose.REGISTRATION);
         transaction.setLastRetryAt(LocalDateTime.now(ZoneOffset.UTC).minusSeconds(40));
@@ -1876,7 +1730,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(true);
+        generateChallengeRequest.setRegenerate(true);
         String transactionId = "TRAN-1234";
         RegistrationTransaction transaction = new RegistrationTransaction(identifier, Purpose.REGISTRATION);
 
@@ -1899,7 +1753,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(true);
+        generateChallengeRequest.setRegenerate(true);
         String transactionId = "TRAN-1234";
         RegistrationTransaction transaction = new RegistrationTransaction(other_identifier, Purpose.REGISTRATION);
 
@@ -1921,7 +1775,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(true);
+        generateChallengeRequest.setRegenerate(true);
         String transactionId = "TRAN-1234";
         RegistrationTransaction transaction = new RegistrationTransaction(identifier, Purpose.REGISTRATION);
         transaction.setChallengeRetryAttempts(4);
@@ -1944,7 +1798,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(true);
+        generateChallengeRequest.setRegenerate(true);
         String transactionId = "TRAN-1234";
         RegistrationTransaction transaction = new RegistrationTransaction(identifier, Purpose.REGISTRATION);
         transaction.increaseAttempt();
@@ -1967,7 +1821,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(false);
+        generateChallengeRequest.setRegenerate(false);
         generateChallengeRequest.setPurpose(Purpose.REGISTRATION);
 
         when(challengeManagerService.generateChallenge(any())).thenReturn("1111");
@@ -1989,7 +1843,7 @@ public class RegistrationServiceTest {
         GenerateChallengeRequest generateChallengeRequest = new GenerateChallengeRequest();
         generateChallengeRequest.setIdentifier(identifier);
         generateChallengeRequest.setCaptchaToken("mock-captcha");
-        generateChallengeRequest.setRegenerateChallenge(false);
+        generateChallengeRequest.setRegenerate(false);
         generateChallengeRequest.setPurpose(Purpose.RESET_PASSWORD);
 
         when(challengeManagerService.generateChallenge(any())).thenReturn("1111");
@@ -2082,54 +1936,6 @@ public class RegistrationServiceTest {
         ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest();
         resetPasswordRequest.setPassword("Password@2002");
         resetPasswordRequest.setIdentifier("+85512345678");
-        resetPasswordRequest.setLocale(locale);
-
-        RegistrationTransaction transaction = new RegistrationTransaction(resetPasswordRequest.getIdentifier(),
-                Purpose.RESET_PASSWORD);
-        transaction.setUin("mockUin");
-
-        Password.PasswordHash passwordHash = new Password.PasswordHash();
-        passwordHash.setSalt("mockSalt");
-        passwordHash.setHashValue("mockHashValue");
-        RestResponseWrapper<Password.PasswordHash> mockPasswordHashRestResponseWrapper = new RestResponseWrapper<>();
-        mockPasswordHashRestResponseWrapper.setResponse(passwordHash);
-
-        RestResponseWrapper<IdentityResponse> mockIdentityResponseRestResponseWrapper = new RestResponseWrapper<>();
-        IdentityResponse mockIdentityResponse = new IdentityResponse();
-        mockIdentityResponseRestResponseWrapper.setResponse(mockIdentityResponse);
-        mockIdentityResponse.setStatus(SignUpConstants.ACTIVATED);
-        mockIdentityResponseRestResponseWrapper.setErrors(new ArrayList<>());
-
-        when(cacheUtilService.getChallengeVerifiedTransaction(verifiedTransactionId)).thenReturn(transaction);
-        when(selfTokenRestTemplate.exchange(
-                eq(generateHashEndpoint),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
-                any(ParameterizedTypeReference.class)))
-                .thenReturn(new ResponseEntity<>(mockPasswordHashRestResponseWrapper, HttpStatus.OK));
-        when(selfTokenRestTemplate.exchange(
-                eq(identityEndpoint),
-                eq(HttpMethod.PATCH),
-                any(HttpEntity.class),
-                any(ParameterizedTypeReference.class)))
-                .thenReturn(new ResponseEntity<>(mockIdentityResponseRestResponseWrapper, HttpStatus.OK));
-
-        when(notificationHelper.sendSMSNotificationAsync(any(), any(), any(), any()))
-                .thenReturn(new CompletableFuture<>());
-
-        RegistrationStatusResponse registrationStatusResponse = registrationService.updatePassword(resetPasswordRequest,
-                verifiedTransactionId);
-        Assert.assertEquals(RegistrationStatus.PENDING, registrationStatusResponse.getStatus());
-    }
-
-    @Test
-    public void doUpdatePassword_withNullLocale_thenSuccess() {
-
-        String verifiedTransactionId = "VERIFIED_TRANSACTION_ID";
-        ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest();
-        resetPasswordRequest.setPassword("Password@2002");
-        resetPasswordRequest.setIdentifier("+85512345678");
-        resetPasswordRequest.setLocale(null);
 
         RegistrationTransaction transaction = new RegistrationTransaction(resetPasswordRequest.getIdentifier(),
                 Purpose.RESET_PASSWORD);
@@ -2176,7 +1982,6 @@ public class RegistrationServiceTest {
         ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest();
         resetPasswordRequest.setPassword("Password@2002");
         resetPasswordRequest.setIdentifier("+85512345678");
-        resetPasswordRequest.setLocale(locale);
 
         try {
             registrationService.updatePassword(resetPasswordRequest, verifiedTransactionId);
@@ -2193,7 +1998,6 @@ public class RegistrationServiceTest {
         ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest();
         resetPasswordRequest.setPassword("Password@2002");
         resetPasswordRequest.setIdentifier("+85512345678");
-        resetPasswordRequest.setLocale(locale);
 
         RegistrationTransaction transaction = new RegistrationTransaction("****", Purpose.RESET_PASSWORD);
         transaction.setUin("mockUin");
@@ -2214,7 +2018,6 @@ public class RegistrationServiceTest {
         ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest();
         resetPasswordRequest.setPassword("Password@2002");
         resetPasswordRequest.setIdentifier("+85512345678");
-        resetPasswordRequest.setLocale(locale);
 
         RegistrationTransaction transaction = new RegistrationTransaction(resetPasswordRequest.getIdentifier(),
                 Purpose.RESET_PASSWORD);
@@ -2255,7 +2058,6 @@ public class RegistrationServiceTest {
         ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest();
         resetPasswordRequest.setPassword("Password@2002");
         resetPasswordRequest.setIdentifier("+85512345678");
-        resetPasswordRequest.setLocale(locale);
 
         RegistrationTransaction transaction = new RegistrationTransaction(resetPasswordRequest.getIdentifier(),
                 Purpose.RESET_PASSWORD);
@@ -2298,7 +2100,6 @@ public class RegistrationServiceTest {
         ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest();
         resetPasswordRequest.setPassword("Password@2002");
         resetPasswordRequest.setIdentifier("+85512345678");
-        resetPasswordRequest.setLocale(locale);
 
         RegistrationTransaction transaction = new RegistrationTransaction(resetPasswordRequest.getIdentifier(),
                 Purpose.RESET_PASSWORD);
@@ -2369,173 +2170,5 @@ public class RegistrationServiceTest {
         } catch (SignUpException exception) {
             Assert.assertEquals(ErrorConstants.CHALLENGE_EXPIRED, exception.getErrorCode());
         }
-    }
-
-    @Test
-    public void doGetRegistrationStatusFromServer_withApplicationID_thenReturnPending() {
-        String transactionId = "TRAN-1234";
-        RegistrationTransaction registrationTransaction = new RegistrationTransaction("+85577410541", Purpose.REGISTRATION);
-        registrationTransaction.setRegistrationStatus(RegistrationStatus.COMPLETED);
-        Map<String, RegistrationStatus> handlesStatus = new LinkedHashMap<>();
-        handlesStatus.put(transactionId, RegistrationStatus.PENDING);
-        registrationTransaction.setHandlesStatus(handlesStatus);
-        RestResponseWrapper<Map<String,String>> mockRestResponseWrapper = new RestResponseWrapper<>();
-        Map<String,String> response = new LinkedHashMap<>();
-        response.put("statusCode", "ISSUED");
-        mockRestResponseWrapper.setResponse(response);
-
-        when(cacheUtilService.getStatusCheckTransaction(transactionId)).thenReturn(registrationTransaction);
-        when(cacheUtilService.setStatusCheckTransaction(transactionId, registrationTransaction)).thenReturn(registrationTransaction);
-        when(selfTokenRestTemplate.exchange(
-                eq(getRegistrationStatusEndpoint),
-                eq(HttpMethod.GET),
-                eq(null),
-                any(ParameterizedTypeReference.class),
-                any(String.class)))
-                .thenReturn(new ResponseEntity<>(mockRestResponseWrapper, HttpStatus.OK));
-
-        RegistrationStatusResponse registrationStatusResponse = registrationService.getRegistrationStatus(transactionId);
-
-        Assert.assertNotNull(registrationStatusResponse);
-        Assert.assertEquals(RegistrationStatus.PENDING, registrationStatusResponse.getStatus());
-    }
-
-    @Test
-    public void doGetRegistrationStatusFromServer_withApplicationID_thenReturnCompleted() {
-        String transactionId = "TRAN-1234";
-        RegistrationTransaction registrationTransaction = new RegistrationTransaction("+85577410541", Purpose.REGISTRATION);
-        registrationTransaction.setRegistrationStatus(RegistrationStatus.COMPLETED);
-        Map<String, RegistrationStatus> handlesStatus = new LinkedHashMap<>();
-        handlesStatus.put(transactionId, RegistrationStatus.PENDING);
-        registrationTransaction.setHandlesStatus(handlesStatus);
-        RestResponseWrapper<Map<String,String>> mockRestResponseWrapper = new RestResponseWrapper<>();
-        Map<String,String> response = new LinkedHashMap<>();
-        response.put("statusCode", "STORED");
-        mockRestResponseWrapper.setResponse(response);
-
-        when(cacheUtilService.getStatusCheckTransaction(transactionId)).thenReturn(registrationTransaction);
-        when(cacheUtilService.setStatusCheckTransaction(transactionId, registrationTransaction)).thenReturn(registrationTransaction);
-        when(selfTokenRestTemplate.exchange(
-                eq(getRegistrationStatusEndpoint),
-                eq(HttpMethod.GET),
-                eq(null),
-                any(ParameterizedTypeReference.class),
-                any(String.class)))
-                .thenReturn(new ResponseEntity<>(mockRestResponseWrapper, HttpStatus.OK));
-
-        RegistrationStatusResponse registrationStatusResponse = registrationService.getRegistrationStatus(transactionId);
-
-        Assert.assertNotNull(registrationStatusResponse);
-        Assert.assertEquals(RegistrationStatus.COMPLETED, registrationStatusResponse.getStatus());
-    }
-
-    @Test
-    public void doGetRegistrationStatusFromServer_withApplicationID_thenReturnFailed() {
-        String transactionId = "TRAN-1234";
-        RegistrationTransaction registrationTransaction = new RegistrationTransaction("+85577410541", Purpose.REGISTRATION);
-        registrationTransaction.setRegistrationStatus(RegistrationStatus.COMPLETED);
-        Map<String, RegistrationStatus> handlesStatus = new LinkedHashMap<>();
-        handlesStatus.put(transactionId, RegistrationStatus.PENDING);
-        registrationTransaction.setHandlesStatus(handlesStatus);
-        RestResponseWrapper<Map<String,String>> mockRestResponseWrapper = new RestResponseWrapper<>();
-        Map<String,String> response = new LinkedHashMap<>();
-        response.put("statusCode", "FAILED");
-        mockRestResponseWrapper.setResponse(response);
-
-        when(cacheUtilService.getStatusCheckTransaction(transactionId)).thenReturn(registrationTransaction);
-        when(cacheUtilService.setStatusCheckTransaction(transactionId, registrationTransaction)).thenReturn(registrationTransaction);
-        when(selfTokenRestTemplate.exchange(
-                eq(getRegistrationStatusEndpoint),
-                eq(HttpMethod.GET),
-                eq(null),
-                any(ParameterizedTypeReference.class),
-                any(String.class)))
-                .thenReturn(new ResponseEntity<>(mockRestResponseWrapper, HttpStatus.OK));
-
-        RegistrationStatusResponse registrationStatusResponse = registrationService.getRegistrationStatus(transactionId);
-
-        Assert.assertNotNull(registrationStatusResponse);
-        Assert.assertEquals(RegistrationStatus.FAILED, registrationStatusResponse.getStatus());
-    }
-
-    @Test
-    public void doGetRegistrationStatusFromServer_withNullRegistrationStatus_thenReturnPending() {
-        String transactionId = "TRAN-1234";
-        RegistrationTransaction registrationTransaction = new RegistrationTransaction("+85577410541", Purpose.REGISTRATION);
-        registrationTransaction.setRegistrationStatus(RegistrationStatus.COMPLETED);
-        Map<String, RegistrationStatus> handlesStatus = new LinkedHashMap<>();
-        handlesStatus.put(transactionId, RegistrationStatus.PENDING);
-        registrationTransaction.setHandlesStatus(handlesStatus);
-
-        when(cacheUtilService.getStatusCheckTransaction(transactionId)).thenReturn(registrationTransaction);
-        when(cacheUtilService.setStatusCheckTransaction(transactionId, registrationTransaction)).thenReturn(registrationTransaction);
-        when(selfTokenRestTemplate.exchange(
-                eq(getRegistrationStatusEndpoint),
-                eq(HttpMethod.GET),
-                eq(null),
-                any(ParameterizedTypeReference.class),
-                any(String.class)))
-                .thenReturn(new ResponseEntity<>(null, HttpStatus.OK));
-
-        RegistrationStatusResponse registrationStatusResponse = registrationService.getRegistrationStatus(transactionId);
-
-        Assert.assertNotNull(registrationStatusResponse);
-        Assert.assertEquals(RegistrationStatus.PENDING, registrationStatusResponse.getStatus());
-    }
-
-    @Test
-    public void doGetRegistrationStatusFromServer_withNullResponseBodyRegistrationStatus_thenReturnPending() {
-        String transactionId = "TRAN-1234";
-        RegistrationTransaction registrationTransaction = new RegistrationTransaction("+85577410541", Purpose.REGISTRATION);
-        registrationTransaction.setRegistrationStatus(RegistrationStatus.COMPLETED);
-        Map<String, RegistrationStatus> handlesStatus = new LinkedHashMap<>();
-        handlesStatus.put(transactionId, RegistrationStatus.PENDING);
-        registrationTransaction.setHandlesStatus(handlesStatus);
-        RestResponseWrapper<Map<String,String>> mockRestResponseWrapper = new RestResponseWrapper<>();
-        mockRestResponseWrapper.setResponse(null);
-
-        when(cacheUtilService.getStatusCheckTransaction(transactionId)).thenReturn(registrationTransaction);
-        when(cacheUtilService.setStatusCheckTransaction(transactionId, registrationTransaction)).thenReturn(registrationTransaction);
-        when(selfTokenRestTemplate.exchange(
-                eq(getRegistrationStatusEndpoint),
-                eq(HttpMethod.GET),
-                eq(null),
-                any(ParameterizedTypeReference.class),
-                any(String.class)))
-                .thenReturn(new ResponseEntity<>(mockRestResponseWrapper, HttpStatus.OK));
-
-        RegistrationStatusResponse registrationStatusResponse = registrationService.getRegistrationStatus(transactionId);
-
-        Assert.assertNotNull(registrationStatusResponse);
-        Assert.assertEquals(RegistrationStatus.PENDING, registrationStatusResponse.getStatus());
-    }
-
-    @Test
-    public void doGetRegistrationStatusFromServer_withEmptyStatusCode_thenReturnPending() {
-        String transactionId = "TRAN-1234";
-        RegistrationTransaction registrationTransaction = new RegistrationTransaction("+85577410541", Purpose.REGISTRATION);
-        registrationTransaction.setRegistrationStatus(RegistrationStatus.COMPLETED);
-        Map<String, RegistrationStatus> handlesStatus = new LinkedHashMap<>();
-        handlesStatus.put(transactionId, RegistrationStatus.PENDING);
-        registrationTransaction.setHandlesStatus(handlesStatus);
-        RestResponseWrapper<Map<String,String>> mockRestResponseWrapper = new RestResponseWrapper<>();
-        Map<String,String> response = new LinkedHashMap<>();
-        response.put("statusCode", "");
-        mockRestResponseWrapper.setResponse(response);
-
-        when(cacheUtilService.getStatusCheckTransaction(transactionId)).thenReturn(registrationTransaction);
-        when(cacheUtilService.setStatusCheckTransaction(transactionId, registrationTransaction)).thenReturn(registrationTransaction);
-        when(selfTokenRestTemplate.exchange(
-                eq(getRegistrationStatusEndpoint),
-                eq(HttpMethod.GET),
-                eq(null),
-                any(ParameterizedTypeReference.class),
-                any(String.class)))
-                .thenReturn(new ResponseEntity<>(mockRestResponseWrapper, HttpStatus.OK));
-
-        RegistrationStatusResponse registrationStatusResponse = registrationService.getRegistrationStatus(transactionId);
-
-        Assert.assertNotNull(registrationStatusResponse);
-        Assert.assertEquals(RegistrationStatus.PENDING, registrationStatusResponse.getStatus());
     }
 }
