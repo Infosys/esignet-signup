@@ -34,7 +34,7 @@ google-chrome-stable --user-data-dir="~/ dev session" --disable-web-security
 
 #### Scripts
 
-##### Web app
+##### Web application
 
 To start the web application, run the following script:
 
