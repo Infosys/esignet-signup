@@ -69,7 +69,7 @@ public class CacheUtilService {
             "    local hash_data = result[2]\n" +
             "    for i = 1, #hash_data, 2 do\n" +
             "        local field = hash_data[i]\n" +
-            "        local value = tonumber(hash_data[i + 1])\n" +
+            "        local value = binary_to_long(hash_data[i + 1])\n" +
             "        if value < current_time then\n" +
             "            local separator_index = string.find(field, \"###\")\n" +
             "            if separator_index then               \n" +
