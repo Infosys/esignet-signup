@@ -15,6 +15,7 @@ import io.mosip.signup.exception.SignUpException;
 import io.mosip.signup.helper.AuditHelper;
 import io.mosip.signup.util.AuditEvent;
 import io.mosip.signup.util.AuditEventType;
+import io.mosip.signup.util.ErrorConstants;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

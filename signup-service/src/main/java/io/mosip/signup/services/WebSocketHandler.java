@@ -23,6 +23,7 @@ import io.mosip.signup.exception.SignUpException;
 import io.mosip.signup.helper.AuditHelper;
 import io.mosip.signup.util.AuditEvent;
 import io.mosip.signup.util.AuditEventType;
+import io.mosip.signup.util.ErrorConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
