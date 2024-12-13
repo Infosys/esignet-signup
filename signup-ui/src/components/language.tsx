@@ -97,7 +97,7 @@ export const Language = () => {
                 ref={langRef}
                 className={cn(
                   "group relative flex cursor-pointer select-none items-center py-2 text-[14px] leading-none outline-none first:border-b-[1px] hover:font-bold data-[disabled]:pointer-events-none",
-                  langFontMapping[key],
+                  (langFontMapping ? langFontMapping[key]: ''),
                   {
                     "font-bold": i18n.language === key,
                   }
