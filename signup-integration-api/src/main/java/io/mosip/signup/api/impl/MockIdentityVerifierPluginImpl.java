@@ -16,6 +16,8 @@ import io.mosip.signup.api.dto.MockUserStory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
@@ -46,6 +48,12 @@ public class MockIdentityVerifierPluginImpl extends IdentityVerifierPlugin {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @EventListener(ContextRefreshedEvent.class)
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        log.info("Config URL: {}", configServerUrl);
+        log.info("Story name: {}", storyName);
+    }
 
     @Override
     public String getVerifierId() {
