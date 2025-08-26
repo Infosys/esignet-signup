@@ -181,9 +181,7 @@ public class WebScocketConnection extends SignupUtil implements ITest {
 
 		// Close the connection
 		if (!(session == null)) {
-			// Closing with custom reason
-			CloseReason reason = new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, "Shutting down cleanly");
-			webSocketClient.closeConnection(reason);
+			webSocketClient.closeWithNormalClosure();
 			logger.info("Connection closed.");
 		}
 
