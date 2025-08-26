@@ -32,7 +32,6 @@ import io.mosip.testrig.apirig.utils.AuthenticationTestException;
 import io.mosip.testrig.apirig.utils.GlobalConstants;
 import io.mosip.testrig.apirig.utils.GlobalMethods;
 import io.mosip.testrig.apirig.utils.SecurityXSSException;
-//import io.mosip.testrig.apirig.utils.WebSocketClientUtil;
 import io.restassured.response.Response;
 
 public class WebScocketConnection extends SignupUtil implements ITest {
