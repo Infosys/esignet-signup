@@ -48,6 +48,22 @@ public class EsignetConfigManager extends io.mosip.testrig.apirig.utils.ConfigMa
 		init(moduleSpecificPropertiesMap);
 	}
 
+	public static String getDbUrl() {
+		return getProperty("db-server-es", "");
+	}
+
+	public static String getDbUser() {
+		return getProperty("db-su-user", "");
+	}
+
+	public static String getDbPassword() {
+		return getProperty("postgres-password", "");
+	}
+
+	public static String getDbSchema() {
+		return getProperty("es_db_schema", "");
+	}
+
 	public static String getProperty(String key, String defaultValue) {
 		String value = propertiesMap.get(key) == null ? "" : propertiesMap.get(key).toString();
 		return (value != null && !value.trim().isEmpty()) ? value : defaultValue;
@@ -60,5 +76,17 @@ public class EsignetConfigManager extends io.mosip.testrig.apirig.utils.ConfigMa
 			LOGGER.error("Invalid explicitWaitTimeout value in config.properties. Using default 10 seconds.");
 			return 10;
 		}
+	}
+
+	public static String getSignupPortalUrl() {
+		return getProperty("signup.portal.url", "");
+	}
+
+	public static String getSmtpUrl() {
+		return getProperty("smtp.url", "");
+	}
+
+	public static String getHealthPortalUrl() {
+		return getProperty("baseurl", "");
 	}
 }
