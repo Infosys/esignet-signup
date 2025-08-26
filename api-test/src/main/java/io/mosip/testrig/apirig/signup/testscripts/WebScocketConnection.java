@@ -3,6 +3,7 @@ package io.mosip.testrig.apirig.signup.testscripts;
 import java.lang.reflect.Field;
 import java.util.Map;
 
+import javax.websocket.CloseReason;
 import javax.websocket.Session;
 
 import org.apache.log4j.Level;
@@ -23,6 +24,7 @@ import org.testng.internal.TestResult;
 
 import io.mosip.testrig.apirig.dto.TestCaseDTO;
 import io.mosip.testrig.apirig.signup.utils.SignupConfigManager;
+import io.mosip.testrig.apirig.signup.utils.SignupCustomWebSocketClientUtil;
 import io.mosip.testrig.apirig.signup.utils.SignupUtil;
 import io.mosip.testrig.apirig.testrunner.HealthChecker;
 import io.mosip.testrig.apirig.utils.AdminTestException;
@@ -30,7 +32,6 @@ import io.mosip.testrig.apirig.utils.AuthenticationTestException;
 import io.mosip.testrig.apirig.utils.GlobalConstants;
 import io.mosip.testrig.apirig.utils.GlobalMethods;
 import io.mosip.testrig.apirig.utils.SecurityXSSException;
-import io.mosip.testrig.apirig.utils.WebSocketClientUtil;
 import io.restassured.response.Response;
 
 public class WebScocketConnection extends SignupUtil implements ITest {
@@ -117,7 +118,8 @@ public class WebScocketConnection extends SignupUtil implements ITest {
 
 		tempUrl = tempUrl.replace("https", "wss") + testCaseDTO.getEndPoint() + "?slotId=" + slotId;
 
-		WebSocketClientUtil webSocketClient = new WebSocketClientUtil(cookie, subscribeDestination, sendDestination);
+		SignupCustomWebSocketClientUtil webSocketClient = new SignupCustomWebSocketClientUtil(cookie, subscribeDestination, sendDestination);
+		
 
 		// Connect to WebSocket server
 		webSocketClient.connect(tempUrl);
@@ -150,7 +152,7 @@ public class WebScocketConnection extends SignupUtil implements ITest {
 						Thread.currentThread().interrupt();
 					}
 
-					Map<String, String> receivedMessage = WebSocketClientUtil.getMessageStore();
+					Map<String, String> receivedMessage = SignupCustomWebSocketClientUtil.getMessageStore();
 
 					String completeMessage = receivedMessage.values().stream().reduce((a, b) -> a + "\n" + b)
 							.orElse("");
@@ -178,7 +180,7 @@ public class WebScocketConnection extends SignupUtil implements ITest {
 
 		// Close the connection
 		if (!(session == null)) {
-			webSocketClient.closeConnection();
+			webSocketClient.closeWithNormalClosure();
 			logger.info("Connection closed.");
 		}
 
