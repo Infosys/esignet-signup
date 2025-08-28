@@ -3,7 +3,55 @@
 ## Overview
 
 Signup UI has provision to verify the user's phone number with OTP and on successful verification user is allowed to 
-register in the integrated ID registry.Both register and reset password requires OTP verification.
+register in the integrated ID registry. Both register and reset password requires OTP verification.
+
+The registration form is built using MOSIP's [Dynamic form library](https://github.com/mosip/mosip-sdk/tree/develop/json-form-builder).
+
+## Dynamic Registration Form
+
+This is a flexible, plug-and-play library that generates forms with automated validation. It takes an identity schema as input and dynamically builds a registration form to match it.
+
+For more details on how to use the library, please refer to the [official documentation](https://github.com/mosip/mosip-sdk/blob/develop/json-form-builder/README.md).
+
+For Identity schema reference, see this [MOSIP UI JSON specification](https://docs.mosip.io/1.2.0/id-lifecycle-management/identity-issuance/registration-client/develop/registration-client-ui-specifications#field-spec-json-template).
+
+> **Note:** Only the **Field spec JSON template** section from the above link is applicable here.
+
+### How to used Dynamic form library
+
+#### 1. Get Identity schema from the /registration/ui-spec endpoint of signup-service
+
+#### 2. Pass that schema into the library, with some of custom values as per your needs
+Here **uiSchema** contains the identity schema and some other placeholder
+```ts
+const form = JsonFormBuilder(
+    {
+        schema: uiSchema.schema,
+        language: uiSchema.language,
+        allowedValues: uiSchema.allowedValues,
+        errors: uiSchema.errors,
+    },
+    "form-container",
+    {
+        submitButton: {
+            label: 'Submit',
+            action: <CALLBACK_METHOD>,
+        },
+        language: {
+            currentLanguage: <CURRENT_LANGUAGE>,
+            defaultLanguage: <DEFAULT_LANGUAGE>,
+        },
+        recaptcha: {
+            siteKey: <YOUR_SITE_KEY>,
+            enabled: true,
+            langugae: 'en'
+        }
+    }
+);
+```
+
+#### 3. There is an option to add reCaptcha as well, so you can pass reCaptcha site key with the parameter 
+
 
 ## Local Development
 
