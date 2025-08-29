@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.mosip.esignet.core.constants.Constants;
 import io.mosip.esignet.core.dto.OIDCTransaction;
 import io.mosip.esignet.core.util.IdentityProviderUtil;
-import io.mosip.signup.api.spi.ProfileRegistryPlugin;
 import io.mosip.signup.dto.IdentityVerificationTransaction;
 import io.mosip.signup.dto.IdentityVerifierDetail;
 import io.mosip.signup.dto.RegistrationTransaction;
@@ -46,7 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static io.mosip.signup.util.SignUpConstants.*;
+import static io.mosip.signup.util.SignUpConstants.SLOTS_CONNECTED;
 
 @Slf4j
 @Service
@@ -74,9 +73,6 @@ public class CacheUtilService {
 
     @Value("${mosip.signup.iam.client-secret}")
     private String clientSecret;
-
-    @Autowired
-    private ProfileRegistryPlugin profileRegistryPlugin;
 
     private static final String CLEANUP_SCRIPT = "local function binary_to_long(binary_str)\n" +
             "    local result = 0\n" +
@@ -392,10 +388,5 @@ public class CacheUtilService {
         if(scriptHash == null) return true;
         List<Boolean> scriptExists = redisConnectionFactory.getConnection().scriptingCommands().scriptExists(scriptHash);
         return scriptExists == null || !scriptExists.get(0);
-    }
-
-    @Cacheable(value = UI_SPEC, key = "'ui_spec'")
-    public JsonNode getSchema() {
-        return profileRegistryPlugin.getUISpecification();
     }
 }

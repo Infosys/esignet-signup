@@ -25,6 +25,7 @@ import io.mosip.signup.helper.NotificationHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.Cookie;
@@ -291,8 +292,10 @@ public class RegistrationService {
         return registrationStatusResponse;
     }
 
-    public JsonNode getSchema() {
-        return cacheUtilService.getSchema();
+
+    @Cacheable(value = UI_SPEC, key = "'ui_spec'")
+    public JsonNode getUiSpec() {
+        return profileRegistryPlugin.getUISpecification();
     }
 
     private void fetchAndCheckIdentity(RegistrationTransaction registrationTransaction,
