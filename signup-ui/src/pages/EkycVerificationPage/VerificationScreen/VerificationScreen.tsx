@@ -49,7 +49,6 @@ export const VerificationScreen = ({
   const [colorVerification, setColorVerification] = useState<boolean>(false);
   const [bgColor, setBgColor] = useState<string | null>(null);
   const [imageFrames, setImageFrames] = useState<IdvFrames[]>([]);
-  const { state } = useL2Hash();
 
   // let imageFrames: IdvFrames[] = [];
   let identityVerification: IdentityVerificationState | null = {
