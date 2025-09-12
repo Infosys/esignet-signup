@@ -4,6 +4,7 @@ import { FormConfig } from "@anushase/json-form-builder/dist/types";
 import { UseFormReturn } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
+import { getDefaultSchema } from "~constants/default-schema";
 import {
   Step,
   StepContent,
@@ -55,21 +56,7 @@ export const AccountSetup = ({ settings, methods }: AccountSetupProps) => {
   const { registerMutation } = useRegister();
 
   const updateAfterLangChange = () => {
-    const confirmPasswordField = {
-      password_confirm: {
-        label: {
-          [i18n.language]: t("confirm_password"),
-        },
-        placeholder: {
-          [i18n.language]: t("confirm_password_placeholder"),
-        },
-      },
-    };
-    formBuilderRef.current?.updateLanguage(
-      i18n.language,
-      t("login"),
-      confirmPasswordField
-    );
+    formBuilderRef.current?.updateLanguage(i18n.language, t("login"));
   };
 
   const handleSubmit = (data: any) => {
@@ -149,7 +136,11 @@ export const AccountSetup = ({ settings, methods }: AccountSetupProps) => {
   }, [uiSchema]);
 
   useEffect(() => {
-    setUiSchema(uiSchemaResponse?.response ?? null);
+    const defaultSchema = getDefaultSchema(
+      settings.response.configs["identifier.name"],
+      settings.response.configs["identifier.prefix"]
+    );
+    setUiSchema(uiSchemaResponse?.response ?? defaultSchema);
   }, [uiSchemaResponse]);
 
   useEffect(() => {

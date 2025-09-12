@@ -1,0 +1,151 @@
+import { FormConfig } from "@anushase/json-form-builder/dist/types";
+
+export const getDefaultSchema = (
+  identityName: string,
+  identityPrefix: string
+): FormConfig => {
+  const defaultSchema: FormConfig = {
+    schema: [
+      {
+        id: identityName,
+        controlType: "phone",
+        labelName: {
+          en: "Username",
+          km: "ឈ្មោះ​អ្នកប្រើប្រាស់",
+        },
+        placeholder: {
+          eng: "Enter your username",
+          khm: "សូមបញ្ចូលឈ្មោះអ្នកប្រើប្រាស់",
+        },
+        validators: [],
+        required: false,
+        disabled: true,
+        prefix: [identityPrefix],
+        alignmentGroup: "groupA",
+      },
+      {
+        id: "fullName",
+        capsLockCheck: true,
+        controlType: "textbox",
+        type: "simpleType",
+        labelName: {
+          eng: "Full Name in Khmer",
+          khm: "គោត្តនាម-នាម",
+        },
+        placeholder: {
+          en: "Enter Full Name in Khmer",
+          km: "បញ្ចូលគោត្តនាម-នាមជាភាសាខ្មែរ",
+        },
+        validators: [
+          {
+            regex:
+              "^[\\u1780-\\u17FF\\u19E0-\\u19FF\\u1A00-\\u1A9F\\u0020]{1,30}$",
+            error: {
+              eng: "Full Name has to be in Khmer only",
+              khm: "គោត្តនាម-នាមត្រូវតែមានតែអក្សរខ្មែរ",
+            },
+            langCode: "km",
+          },
+          {
+            regex: "^[a-zA-Z][a-zA-Z ]{1,30}$",
+            error: {
+              eng: "Full Name has to be in English only",
+              khm: "ឈ្មោះ​ពេញ​ត្រូវតែសរសេរជាភាសាអង់គ្លេសតែប៉ុណ្ណោះ",
+            },
+            langCode: "en",
+          },
+        ],
+        info: {
+          en: "Maximum 30 characters allowed with no alphabets or special characters, except space.",
+          km: "ជាអតិបរមា 30 តួអក្សរត្រូវបានអនុញ្ញាត និងមិនគួរមានលេខ ឬតួអក្សរពិសេសណាមួយឡើយ លើកលែងតែដកឃ្លា។",
+        },
+        alignmentGroup: "groupB",
+        required: true,
+      },
+      {
+        id: "password",
+        capsLockCheck: true,
+        controlType: "password",
+        labelName: {
+          eng: "Password",
+          khm: "ពាក្យសម្ងាត់",
+        },
+        placeholder: {
+          eng: "Enter your password",
+          khm: "សូមបញ្ចូលពាក្យសម្ងាត់",
+        },
+        info: {
+          eng: "Password must be at least 8 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
+          khm: "ពាក្យសម្ងាត់ត្រូវតែមានយ៉ាងហោចណាស់ ៨ តួអក្សរ មានតួអក្សរធំមួយ តួអក្សរតូចមួយ លេខមួយ និងតួអក្សរពិសេសមួយ។",
+        },
+        alignmentGroup: "groupC",
+        required: true,
+      },
+      {
+        id: "preferredLang",
+        controlType: "textbox",
+        labelName: {
+          eng: "Preferred Lang",
+          khm: "ភាសាដែលចូលចិត្ត",
+        },
+        info: {
+          eng: "Preferred Lang",
+          khm: "ភាសាដែលចូលចិត្ត",
+        },
+        required: false,
+        disabled: true,
+        alignmentGroup: "groupD",
+      },
+      {
+        id: "consent",
+        controlType: "checkbox",
+        labelName: {
+          eng: "I agree to Cambodia’s <b><a href='#'>Terms & Conditions</a></b> and <b><a href='#'>Privacy Policy</a></b>, to store & process my information as required.",
+          khm: "ខ្ញុំយល់ព្រមតាម<b><a href='#'>លក្ខខណ្ឌ</a></b> និង<b><a href='#'>គោលការណ៍ឯកជនភាព</a></b>របស់ប្រទេសកម្ពុជា ដើម្បីរក្សាទុក និងដំណើរការព័ត៌មានរបស់ខ្ញុំតាមតម្រូវការ។",
+        },
+        required: true,
+        alignmentGroup: "groupE",
+      },
+    ],
+    allowedValues: {
+      preferredLang: "khm",
+    },
+    i18nValues: {
+      errors: {
+        required: {
+          en: "This field is required",
+          km: "វាលនេះត្រូវការទទួលបាន",
+        },
+        passwordMismatch: {
+          en: "Passwords is not matching please check your password",
+          km: "ពាក្យសម្ងាត់មិនត្រូវគ្នាទេ សូមពិនិត្យពាក្យសម្ងាត់របស់អ្នក",
+        },
+        capsLock: {
+          en: "Caps Lock is on",
+          km: "Caps Lock កំពុងបើក",
+        },
+      },
+      labels: {
+        password_confirm: {
+          en: "Confirm Password",
+          km: "បញ្ជាក់លេខសម្ងាត់",
+        },
+      },
+      placeholders: {
+        password_confirm: {
+          eng: "Enter your password again",
+          khm: "បញ្ចូលលេខសម្ងាត់របស់អ្នកម្ដងទៀត",
+        },
+      },
+    },
+    language: {
+      mandatory: ["khm"],
+      optional: ["eng"],
+      langCodeMap: {
+        khm: "km",
+        eng: "en",
+      },
+    },
+  };
+  return defaultSchema;
+};
