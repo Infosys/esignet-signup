@@ -5,6 +5,7 @@
 This repository contains a signup UI and signup service to handle signup operations by the end user. This module can be
 used to fast-track the availability of any digital service to end users via eSignet. eSignet has built-in support for the
 integration with the signup module. The signup service is flexible to connect to any ID registry system via a well-defined plugin interface.
+Testing document push.
 
 Currently, signup supports below features:
 1. Register User
